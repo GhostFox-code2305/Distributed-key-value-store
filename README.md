@@ -2,56 +2,117 @@
 
 A production-grade distributed database implementation in Go, featuring LSM trees, Raft consensus, and consistent hashing.
 
-## Week 1: Foundation & Write-Ahead Log ✅
+## Progress Overview
 
-### What We Built
+- [x] **Week 1**: Foundation & WAL ✅
+- [x] **Week 2**: LSM Tree (MemTable + SSTables) ✅ ← **I AM HERE**
+- [ ] **Week 3**: Compaction & Optimization
+- [ ] **Week 4**: Networking (gRPC)
+- [ ] **Week 5**: Consistent Hashing
+- [ ] **Week 6**: Replication
+- [ ] **Week 7-9**: Raft Consensus
+- [ ] **Week 10**: Production Polish
 
-1. **Write-Ahead Log (WAL)**: Ensures durability by logging all operations before applying them
-2. **Crash Recovery**: Replays WAL entries on startup to restore state
-3. **Basic KV Store**: Simple in-memory storage with Put/Get/Delete operations
-4. **CLI Interface**: Interactive command-line interface for testing
+---
+
+## Week 2: LSM Tree Implementation ✅
+
+### What I Built
+
+1. **MemTable (Skip List)**: In-memory sorted data structure
+   - O(log n) insert/search operations
+   - 64MB size threshold before flushing
+   - Thread-safe concurrent operations
+
+2. **SSTable (Sorted String Table)**: Immutable on-disk files
+   - Sorted key-value pairs for efficient lookups
+   - Index block for fast key location (binary search)
+   - Footer with metadata
+
+3. **LSM Store**: Orchestrates MemTable and SSTables
+   - Write path: WAL → MemTable → SSTable (when full)
+   - Read path: MemTable → SSTables (newest to oldest)
+   - Automatic flushing when MemTable reaches 64MB
+
+4. **Tombstones**: Proper deletion handling
+   - Deletes write tombstone markers
+   - Prevents deleted keys from reappearing
 
 ### Architecture
 
 ```
-┌─────────────────────────────────────┐
-│         Client (CLI)                │
-└──────────────┬──────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────┐
-│       Storage Engine                │
-│  ┌─────────────┐  ┌──────────────┐ │
-│  │   In-Memory │  │ Write-Ahead  │ │
-│  │     Map     │  │     Log      │ │
-│  └─────────────┘  └──────────────┘ │
-└─────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                      Write Path                             │
+│                                                              │
+│  PUT(key, value)                                            │
+│         │                                                    │
+│         ├──► WAL (durability)                               │
+│         │                                                    │
+│         └──► MemTable (Skip List, 64MB max)                 │
+│                    │                                         │
+│                    │ When full                               │
+│                    ▼                                         │
+│              Flush to SSTable                                │
+│              (immutable, sorted)                             │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                      Read Path                              │
+│                                                              │
+│  GET(key)                                                   │
+│         │                                                    │
+│         ├──► 1. Check MemTable ──────────► Found? Return   │
+│         │                                                    │
+│         ├──► 2. Check Immutable MemTable ─► Found? Return   │
+│         │                                                    │
+│         └──► 3. Check SSTables (newest → oldest)            │
+│                    │                                         │
+│                    └──► Binary search in index              │
+│                          Read from data block               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Key Features
 
-✅ **Durability**: All writes are persisted to disk via WAL  
-✅ **Crash Recovery**: Automatic state restoration on restart  
-✅ **Thread-Safe**: Concurrent reads/writes with proper locking  
-✅ **Binary Protocol**: Efficient WAL entry format
+✅ **Skip List MemTable**: O(log n) sorted data structure  
+✅ **Automatic Flushing**: 64MB threshold prevents memory overflow  
+✅ **SSTable Format**: Efficient on-disk storage with index  
+✅ **Crash Recovery**: WAL replay restores MemTable state  
+✅ **Tombstone Deletion**: Proper handling of deleted keys  
+✅ **Multi-level Reads**: MemTable → SSTables hierarchy
 
-### WAL Entry Format
+### File Format
 
+#### SSTable Structure
 ```
-[timestamp: 8 bytes]
-[op_type: 1 byte]      // 1 = PUT, 2 = DELETE
-[key_len: 4 bytes]
-[key: variable]
-[value_len: 4 bytes]
-[value: variable]
+┌──────────────────────────────────────┐
+│         Data Block                   │
+│  [key1_len][key1][val1_len][val1]   │
+│  [key2_len][key2][val2_len][val2]   │
+│  ...                                 │
+├──────────────────────────────────────┤
+│         Index Block                  │
+│  [key1_len][key1][offset1]          │
+│  [key2_len][key2][offset2]          │
+│  ...                                 │
+├──────────────────────────────────────┤
+│         Footer (16 bytes)            │
+│  [index_offset: 8 bytes]            │
+│  [num_entries: 4 bytes]             │
+│  [magic_number: 4 bytes]            │
+└──────────────────────────────────────┘
 ```
+
+---
 
 ## Getting Started
 
 ### Prerequisites
 
 - Go 1.21 or higher
-- Unix-like system (Linux/macOS) or Windows with Go installed
+- Windows/Linux/macOS
 
 ### Installation
 
@@ -60,12 +121,10 @@ A production-grade distributed database implementation in Go, featuring LSM tree
 mkdir distributed-kv && cd distributed-kv
 
 # Initialize Go module
-go mod init github.com/yourusername/distributed-kv
+go mod init kvstore
 
 # Create directory structure
 mkdir -p storage cmd/server data
-
-# Copy the code files from artifacts
 ```
 
 ### Running the Server
@@ -74,8 +133,11 @@ mkdir -p storage cmd/server data
 # Run from project root
 go run cmd/server/main.go
 
-# Or specify custom data directory
-go run cmd/server/main.go -data ./my-data
+# Output:
+# 🚀 Distributed KV Store started (LSM Tree Mode)
+# 📁 Data directory: ./data
+# 💾 MemTable threshold: 64MB
+# 📝 Commands: PUT <key> <value>, GET <key>, DELETE <key>, STATS, QUIT
 ```
 
 ### Running Tests
@@ -87,6 +149,9 @@ go test ./storage/...
 # Run with verbose output
 go test -v ./storage/...
 
+# Run specific test
+go test -v ./storage/ -run TestLSMStore_MemTableFlush
+
 # Run benchmarks
 go test -bench=. ./storage/...
 ```
@@ -97,126 +162,233 @@ go test -bench=. ./storage/...
 # Start the server
 $ go run cmd/server/main.go
 
-# In the CLI:
+# Basic operations
 > PUT user:1 {"name":"Alice","age":30}
-OK
+✅ OK
 
 > GET user:1
-{"name":"Alice","age":30}
-
-> PUT user:2 {"name":"Bob","age":25}
-OK
-
-> STATS
-Statistics:
-  num_keys: 2
+📦 {"name":"Alice","age":30}
 
 > DELETE user:1
-OK
+🗑️  Deleted
 
 > GET user:1
-Error: key not found
+❌ Error: key not found
 
-> QUIT
-Shutting down...
+# Check statistics
+> STATS
+📊 Statistics:
+  memtable_size: 1024
+  num_sstables: 0
+
+# Write large amount of data to trigger flush
+> PUT large_key_1 [1MB of data]
+✅ OK
+... (repeat 65 times)
+
+> STATS
+📊 Statistics:
+  memtable_size: 512
+  num_sstables: 1    # SSTable created!
 ```
 
-### Testing Crash Recovery
+### Testing SSTable Flush
 
 ```bash
-# Terminal 1: Start server and add data
+# This script writes enough data to trigger flush
 $ go run cmd/server/main.go
-> PUT test recovery_works
-OK
-> PUT foo bar
-OK
-> ^C  # Kill the server (Ctrl+C)
 
-# Terminal 1: Restart server
-$ go run cmd/server/main.go
-> GET test
-recovery_works
-> GET foo
-bar
+> PUT test_1 [paste 1KB of text]
+> PUT test_2 [paste 1KB of text]
+... (repeat until you see flush happen)
+
+> STATS
+📊 Statistics:
+  memtable_size: 2048
+  num_sstables: 1    # Data flushed to disk!
 ```
+
+---
 
 ## Performance Characteristics
 
-**Current Implementation (Week 1):**
-- **Write Latency**: ~1-2ms (includes fsync for durability)
-- **Read Latency**: ~100ns (in-memory map lookup)
+### Week 2 (LSM Tree)
+
+**Write Performance:**
+- **MemTable writes**: ~100-200ns (in-memory skip list)
+- **With WAL**: ~1-2ms (includes fsync)
+- **Throughput**: ~500-1000 writes/sec (WAL-limited)
+
+**Read Performance:**
+- **MemTable hits**: ~200ns (skip list lookup)
+- **SSTable reads**: ~1-5ms (disk I/O + binary search)
 - **Throughput**: 
-  - Writes: ~500-1000 ops/sec (limited by fsync)
-  - Reads: ~1M+ ops/sec (memory speed)
+  - Hot data (in MemTable): ~1M ops/sec
+  - Cold data (SSTables): ~200-1000 ops/sec
 
-**Note**: These will change significantly in Week 2 when we implement LSM trees.
+**Space Efficiency:**
+- **Compression**: None (Week 3 feature)
+- **Overhead**: ~16 bytes per key-value pair (index + metadata)
 
-## Project Roadmap
+**Comparison with Week 1:**
 
-- [x] **Week 1**: Foundation & WAL ← **YOU ARE HERE**
-- [ ] **Week 2**: LSM Tree (MemTable + SSTables)
-- [ ] **Week 3**: Compaction & Optimization
-- [ ] **Week 4**: Networking (gRPC)
-- [ ] **Week 5**: Consistent Hashing
-- [ ] **Week 6**: Replication
-- [ ] **Week 7-9**: Raft Consensus
-- [ ] **Week 10**: Production Polish
+| Metric | Week 1 (Simple Map) | Week 2 (LSM Tree) |
+|--------|---------------------|-------------------|
+| Max dataset size | RAM limited | Disk limited |
+| Write throughput | ~500 ops/sec | ~500 ops/sec |
+| Read latency (hot) | ~100ns | ~200ns |
+| Read latency (cold) | N/A | ~1-5ms |
+| Scalability | Poor | Good |
 
-## What's Next?
-
-In **Week 2**, we'll replace the simple in-memory map with a proper LSM Tree:
-- MemTable (in-memory sorted structure)
-- SSTables (immutable sorted files on disk)
-- Efficient range queries
-- Better write throughput
-
-## Technical Decisions
-
-### Why WAL?
-
-The Write-Ahead Log ensures **durability** - even if the process crashes, we can replay operations and restore state. This is critical for databases.
-
-### Why `fsync`?
-
-After writing to the WAL, we call `fsync()` to force the OS to flush data to disk. Without this, data could sit in OS buffers and be lost on a power failure.
-
-### Trade-offs
-
-- **Durability vs Speed**: Each write requires an fsync (slow), but guarantees durability
-- **Simplicity vs Features**: Week 1 uses a simple map, not optimized for large datasets
-- **In-Memory Only**: All data must fit in RAM (we'll fix this with SSTables in Week 2)
+---
 
 ## Code Structure
 
 ```
 distributed-kv/
 ├── storage/
-│   ├── wal.go          # Write-Ahead Log implementation
-│   ├── store.go        # Key-value store with WAL integration
-│   └── store_test.go   # Comprehensive tests
+│   ├── wal.go           # Write-Ahead Log (Week 1)
+│   ├── memtable.go      # Skip List MemTable (Week 2) ✨
+│   ├── sstable.go       # SSTable writer/reader (Week 2) ✨
+│   ├── lsm_store.go     # LSM orchestration (Week 2) ✨
+│   └── lsm_store_test.go # Comprehensive tests (Week 2) ✨
 ├── cmd/
 │   └── server/
-│       └── main.go     # Server entry point with CLI
-├── data/               # Generated: WAL and data files
+│       └── main.go      # Updated CLI (Week 2) ✨
+├── data/
+│   ├── wal.log         # Write-ahead log
+│   ├── sstable_0.db    # First SSTable (created on flush)
+│   ├── sstable_1.db    # Second SSTable
+│   └── ...
 ├── go.mod
 └── README.md
 ```
 
-## Contributing
+---
 
-This is a learning project! Feel free to:
-- Experiment with the code
-- Add new features
-- Optimize performance
-- Break things and fix them
+## Technical Deep Dive
+
+### Why Skip List for MemTable?
+
+**Advantages:**
+- Probabilistic balancing (simpler than Red-Black trees)
+- Lock-free read operations possible
+- Good cache locality
+- Average O(log n) complexity
+
+**Trade-offs:**
+- Slightly more memory than hash maps
+- Worst-case O(n) (extremely rare)
+
+### Why LSM Tree?
+
+**Perfect for:**
+- Write-heavy workloads (sequential writes are fast)
+- Large datasets (don't need to fit in RAM)
+- Range queries (sorted data)
+
+**Not ideal for:**
+- Read-heavy with random access (need to check multiple levels)
+- Small datasets that fit in RAM (simpler structures work better)
+
+### SSTable Design Decisions
+
+**Why immutable?**
+- Simplifies concurrent access (no locks needed)
+- Enables efficient caching
+- Makes compaction easier
+
+**Why separate index block?**
+- Fast key lookup without scanning entire file
+- Binary search on small in-memory index
+- Only one disk seek per GET operation
+
+---
+
+## What's Next: Week 3
+
+In **Week 3**, we'll add:
+- **Compaction**: Merge overlapping SSTables to reclaim space
+- **Bloom Filters**: Skip SSTables that definitely don't have a key
+- **Compression**: Reduce disk usage
+- **Better stats**: Track read/write amplification
+
+These optimizations will make the database production-ready!
+
+---
+
+## Technical Decisions & Trade-offs
+
+### MemTable Size (64MB)
+
+**Why 64MB?**
+- Large enough: Amortizes flush cost
+- Small enough: Fits comfortably in RAM
+- Industry standard: RocksDB uses 64-256MB
+
+**Trade-offs:**
+- Larger = fewer flushes, more memory
+- Smaller = faster recovery, less memory
+
+### Tombstones
+
+**Why not delete immediately?**
+- SSTables are immutable
+- Key might exist in older SSTables
+- Compaction will eventually remove tombstones
+
+---
+
+## Common Issues & Solutions
+
+### Issue: "MemTable never flushes"
+
+**Solution**: You need to write >64MB of data. Try this test:
+
+```go
+for i := 0; i < 70000; i++ {
+    key := fmt.Sprintf("key_%d", i)
+    value := make([]byte, 1024) // 1KB
+    store.Put(key, value)
+}
+```
+
+### Issue: "Reads are slow after flush"
+
+**Expected behavior**: Reads from disk (SSTables) are 1000x slower than RAM (MemTable). Week 3 will add Bloom filters to help.
+
+### Issue: "Disk usage grows quickly"
+
+**Expected behavior**: No compaction yet. Each flush creates a new SSTable. Week 3 adds compaction to merge and reclaim space.
+
+---
 
 ## Resources
 
-- [Write-Ahead Logging](https://en.wikipedia.org/wiki/Write-ahead_logging)
-- [LSM Trees Paper](https://www.cs.umb.edu/~poneil/lsmtree.pdf)
+- [Log-Structured Merge-Trees (Original Paper)](https://www.cs.umb.edu/~poneil/lsmtree.pdf)
+- [Skip Lists: A Probabilistic Alternative to Balanced Trees](https://15721.courses.cs.cmu.edu/spring2018/papers/08-oltpindexes1/pugh-skiplists-cacm1990.pdf)
+- [RocksDB Wiki](https://github.com/facebook/rocksdb/wiki)
 - [Designing Data-Intensive Applications](https://dataintensive.net/)
 
 ---
 
-**Status**: Week 1 Complete ✅  
-**Next**: Week 2 - LSM Tree Implementation
+## Testing Checklist
+
+Week 2 tests:
+- [x] Basic Put/Get/Delete operations
+- [x] MemTable automatic flush (>64MB)
+- [x] Reading from SSTables
+- [x] Crash recovery with WAL
+- [x] Skip list maintains sorted order
+- [x] Tombstone deletion
+
+Run all tests:
+```bash
+go test -v ./storage/...
+```
+
+---
+
+**Status**: Week 2 Complete ✅  
+**Next**: Week 3 - Compaction & Optimization  
+**Lines of Code**: ~800 (total: ~1600)
