@@ -15,15 +15,18 @@ func main() {
 	dataDir := flag.String("data", "./data", "Directory for storing data files")
 	flag.Parse()
 
-	store, err := storage.NewStore(*dataDir)
+	// Create LSM store (new in Week 2!)
+	store, err := storage.NewLSMStore(*dataDir)
 	if err != nil {
 		log.Fatalf("Failed to create store: %v", err)
 	}
 	defer store.Close()
 
-	log.Printf("Distributed KV Store started")
-	log.Printf("Data directory: %s", *dataDir)
-	log.Println("Enter commands: PUT <key> <value>, GET <key>, DELETE <key>, STATS, QUIT")
+	log.Printf("🚀 Distributed KV Store started (LSM Tree Mode)")
+	log.Printf("📁 Data directory: %s", *dataDir)
+	log.Printf("💾 MemTable threshold: 64MB")
+	log.Println("📝 Commands: PUT <key> <value>, GET <key>, DELETE <key>, STATS, QUIT")
+	log.Println()
 
 	scanner := bufio.NewScanner(os.Stdin)
 
@@ -55,9 +58,9 @@ func main() {
 			value := strings.Join(parts[2:], " ")
 
 			if err := store.Put(key, []byte(value)); err != nil {
-				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("❌ Error: %v\n", err)
 			} else {
-				fmt.Println("OK")
+				fmt.Println("✅ OK")
 			}
 
 		case "GET":
@@ -69,9 +72,9 @@ func main() {
 
 			value, err := store.Get(key)
 			if err != nil {
-				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("❌ Error: %v\n", err)
 			} else {
-				fmt.Printf("%s\n", value)
+				fmt.Printf("📦 %s\n", value)
 			}
 
 		case "DELETE":
@@ -82,24 +85,24 @@ func main() {
 			key := parts[1]
 
 			if err := store.Delete(key); err != nil {
-				fmt.Printf("Error: %v\n", err)
+				fmt.Printf("❌ Error: %v\n", err)
 			} else {
-				fmt.Println("OK")
+				fmt.Println("🗑️  Deleted")
 			}
 
 		case "STATS":
 			stats := store.Stats()
-			fmt.Printf("Statistics:\n")
+			fmt.Printf("📊 Statistics:\n")
 			for k, v := range stats {
 				fmt.Printf("  %s: %v\n", k, v)
 			}
 
 		case "QUIT", "EXIT":
-			fmt.Println("Shutting down...")
+			fmt.Println("👋 Shutting down...")
 			return
 
 		default:
-			fmt.Println("Unknown command. Available: PUT, GET, DELETE, STATS, QUIT")
+			fmt.Println("❓ Unknown command. Available: PUT, GET, DELETE, STATS, QUIT")
 		}
 	}
 
