@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package kvstore;
+
+option go_package = "kvstore/proto";
+
+// KVStore service definition
+service KVStore {
+  // Put stores a key-value pair
+  rpc Put(PutRequest) returns (PutResponse);
+  
+  // Get retrieves a value by key
+  rpc Get(GetRequest) returns (GetResponse);
+  
+  // Delete removes a key-value pair
+  rpc Delete(DeleteRequest) returns (DeleteResponse);
+  
+  // Stats returns storage statistics
+  rpc Stats(StatsRequest) returns (StatsResponse);
+  
+  // Compact triggers manual compaction
+  rpc Compact(CompactRequest) returns (CompactResponse);
+}
+
+// Put request message
+message PutRequest {
+  string key = 1;
+  bytes value = 2;
+}
+
+// Put response message
+message PutResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// Get request message
+message GetRequest {
+  string key = 1;
+}
+
+// Get response message
+message GetResponse {
+  bytes value = 1;
+  bool found = 2;
+  string error = 3;
+}
+
+// Delete request message
+message DeleteRequest {
+  string key = 1;
+}
+
+// Delete response message
+message DeleteResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// Stats request message
+message StatsRequest {
+  // Empty for now
+}
+
+// Stats response message
+message StatsResponse {
+  int64 memtable_size = 1;
+  int32 num_sstables = 2;
+  int64 bloom_filter_hits = 3;
+  int64 bloom_filter_misses = 4;
+  int64 compaction_total_compactions = 5;
+  int64 compaction_total_keys_removed = 6;
+  int64 compaction_total_bytes_reclaimed = 7;
+  string compaction_last_compaction = 8;
+}
+
+// Compact request message
+message CompactRequest {
+  // Empty for now
+}
+
+// Compact response message
+message CompactResponse {
+  bool success = 1;
+  string error = 2;
+}
